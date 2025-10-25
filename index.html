@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Garantía Total — Dashboard de Ingresos (Cascada)</title>
+  <meta name="description" content="Tablero estático con KPIs, cascada de ingresos y desgloses por responsables y canales. Datos embebidos desde la base de conocimiento (oct-2025)." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    html, body { height: 100%; }
+    .card { border-radius: 1rem; background: white; box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04); }
+    .muted { color: #6b7280; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .sticky-thead thead { position: sticky; top: 0; background: white; }
+    .kpi .label{font-size:.9rem;color:#6b7280}
+    .kpi .value{font-size:1.875rem;line-height:2.25rem;font-weight:600}
+    .kpi .sub{font-size:.75rem;color:#6b7280}
+    .kpi-icon{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center}
+    .btn{ @apply px-3 py-1.5 rounded-lg border text-sm; }
+    .btn-active{ @apply bg-gray-900 text-white border-gray-900; }
+    .btn-muted{ @apply bg-white text-gray-700 border-gray-300 hover:bg-gray-50; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <header class="sticky top-0 z-30 backdrop-blur bg-white/80 border-b">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold">GT</div>
+        <div>
+          <h1 class="text-xl font-semibold">Dashboard de Ingresos — Cascada</h1>
+          <p class="text-sm muted">Garantías Extendidas | Reconocimiento lineal: <span class="mono">$6.250</span> / póliza / mes</p>
+        </div>
+      </div>
+      <div class="text-xs muted">Corte: <span id="corte"></span> · Rango: <span id="rango"></span></div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <!-- KPIs macro (row 1) -->
+    <section id="kpiRow1" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="card p-5 kpi">
+        <div class="flex items-start justify-between">
+          <div class="label">Ingreso realizado (hasta fin de mes previo)</div>
+          <div class="kpi-icon bg-emerald-50 text-emerald-700" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 8c-2.21 0-4 1.343-4 3s1.79 3 4 3 4 1.343 4 3-1.79 3-4 3m0-12V4m0 16v-1"/></svg>
+          </div>
+        </div>
+        <div id="kpiRealizado" class="value mt-2">—</div>
+        <div id="kpiRealizadoNote" class="sub mt-1">—</div>
+      </div>
+      <div class="card p-5 kpi">
+        <div class="flex items-start justify-between">
+          <div class="label">Backlog (desde mes actual)</div>
+          <div class="kpi-icon bg-sky-50 text-sky-700" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h14M3 12h18M3 17h10"/></svg>
+          </div>
+        </div>
+        <div id="kpiBacklog" class="value mt-2">—</div>
+        <div id="kpiBacklogNote" class="sub mt-1">—</div>
+      </div>
+      <div class="card p-5 kpi">
+        <div class="flex items-start justify-between">
+          <div class="label">Run-rate mes actual</div>
+          <div class="kpi-icon bg-indigo-50 text-indigo-700" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 12h6l4 8 4-16 4 8"/></svg>
+          </div>
+        </div>
+        <div id="kpiRunRate" class="value mt-2">—</div>
+        <div class="sub mt-1">Pólizas activas: <span id="kpiActivas"></span></div>
+      </div>
+      <div class="card p-5 kpi">
+        <div class="flex items-start justify-between">
+          <div class="label">Tasa de cancelación (acumulada)</div>
+          <div class="kpi-icon bg-rose-50 text-rose-700" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-7.4 12.84A2 2 0 004.53 20h14.94a2 2 0 001.64-3.3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+          </div>
+        </div>
+        <div id="kpiCancelRate" class="value mt-2">—</div>
+        <div class="sub mt-1"># canceladas: <span id="kpiCancelCount"></span> / total: <span id="kpiTotalPolicies"></span></div>
+      </div>
+    </section>
+
+    <!-- CONTROLES DE VISTA Y PROYECCIÓN -->
+    <section id="controls" class="card p-4">
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        <span class="muted mr-2">Filtros de rango:</span>
+        <button class="btn btn-active" data-range="all">Todo</button>
+        <button class="btn btn-muted" data-range="ytd">YTD</button>
+        <button class="btn btn-muted" data-range="last6">Últimos 6m</button>
+        <button class="btn btn-muted" data-range="last12">Últimos 12m</button>
+        <div class="muted ml-4">Series:</div>
+        <label class="inline-flex items-center gap-1"><input id="toggleVentas" type="checkbox" class="accent-indigo-600" checked> Ventas</label>
+        <label class="inline-flex items-center gap-1"><input id="toggleCancel" type="checkbox" class="accent-rose-600" checked> Cancelaciones</label>
+      </div>
+    </section>
+
+    <!-- Trend macro -->
+    <section id="chartsSection" class="grid md:grid-cols-2 gap-4">
+      <div class="card p-4">
+        <div class="flex items-center justify-between">
+          <h3 class="font-medium">Ingresos mensuales</h3>
+          <div class="text-xs muted" id="ingresosRange">—</div>
+        </div>
+        <canvas id="ingresosChart" height="220"></canvas>
+      </div>
+      <div class="card p-4">
+        <div class="flex items-center justify-between">
+          <h3 class="font-medium">Pólizas: ventas y cancelaciones</h3>
+          <div class="text-xs muted" id="ventasRange">—</div>
+        </div>
+        <canvas id="ventasChart" height="220"></canvas>
+      </div>
+    </section>
+
+    <!-- Micro: desgloses del mes actual -->
+    <section class="grid md:grid-cols-2 gap-4">
+      <div class="card p-4 overflow-hidden">
+        <div class="flex items-center justify-between">
+          <h3 class="font-medium">Desglose por Responsable (mes actual)</h3>
+          <div class="text-xs muted" id="mesActual"></div>
+        </div>
+        <div class="overflow-auto max-h-[360px]">
+          <table class="w-full text-sm sticky-thead">
+            <thead>
+              <tr>
+                <th class="text-left p-2">Responsable GT</th>
+                <th class="text-left p-2">Responsable Bci</th>
+                <th class="text-right p-2">Pólizas</th>
+                <th class="text-right p-2">Ingreso</th>
+              </tr>
+            </thead>
+            <tbody id="respBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card p-4 overflow-hidden">
+        <div class="flex items-center justify-between">
+          <h3 class="font-medium">Top canales (mes actual)</h3>
+          <div class="text-xs muted" id="mesActual2"></div>
+        </div>
+        <div class="overflow-auto max-h-[360px]">
+          <table class="w-full text-sm sticky-thead">
+            <thead>
+              <tr>
+                <th class="text-left p-2">Nombre del Canal</th>
+                <th class="text-right p-2">Pólizas</th>
+                <th class="text-right p-2">Ingreso</th>
+              </tr>
+            </thead>
+            <tbody id="dealerBody"></tbody>
+          </table>
+          <p class="text-xs muted mt-2">Fuente: Glosa "Nombre del Canal" (Ventas Acumuladas).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cascada completa -->
+    <section id="cascadaSection" class="card p-4">
+      <div class="flex items-center justify-between"><h3 class="font-medium">Cascada por mes (historia + proyección cartera vigente)</h3></div>
+      <div class="overflow-auto max-h-[420px] mt-2">
+        <table class="w-full text-sm sticky-thead">
+          <thead>
+            <tr>
+              <th class="text-left p-2">Mes</th>
+              <th class="text-right p-2">Ingreso</th>
+              <th class="text-right p-2">Activas</th>
+              <th class="text-right p-2">Ventas</th>
+              <th class="text-right p-2">Cancelaciones</th>
+            </tr>
+          </thead>
+          <tbody id="cascadaBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="text-xs muted">
+      <p>Hecho para <strong>Garantía Total</strong>. Datos embebidos al <span id="dataDate"></span>. Supuestos: precio 12m = $75.000; 24m = $150.000; reconocimiento lineal = $6.250/mes; cancelaciones cortan ingreso desde el mes de <em>FECHA_FIN</em> (excluyente).</p>
+    </footer>
+  </main>
+
+  <!-- DATA EMBED (defensivo y libre de caracteres extraños en JS) -->
+  <script id="data-embed">
+    (function(){
+      var months = [
+        "02/2025","03/2025","04/2025","05/2025","06/2025","07/2025","08/2025","09/2025",
+        "10/2025","11/2025","12/2025","01/2026","02/2026","03/2026","04/2026","05/2026",
+        "06/2026","07/2026","08/2026","09/2026","10/2026","11/2026","12/2026","01/2027",
+        "02/2027","03/2027","04/2027","05/2027","06/2027","07/2027","08/2027","09/2027","10/2027"
+      ];
+      var ingreso = [50000,68750,168750,343750,893750,1568750,2400000,2950000,3450000,3450000,3450000,3450000,3450000,3450000,3450000,3450000,3450000,3450000,3300000,3250000,3125000,3125000,3125000,3100000,3050000,3000000,2900000,2750000,2550000,2300000,2100000,1600000,850000];
+      var activas = [8,11,27,55,143,251,384,472,552,552,552,552,552,552,552,552,552,552,535,530,510,510,510,505,495,485,470,445,420,385,350,260,140];
+      var ventas = [8,3,17,31,93,121,157,118,80,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+      var cancelaciones = [2,0,1,3,5,13,25,31,0,0,0,0,0,0,0,0,0,8,0,0,0,0,0,0,6,1,12,16,16,16,8,0,0];
+
+      window.__DATA__ = {
+        current_month: "2025-10",
+        series: { months: months, ingreso: ingreso, activas: activas, ventas: ventas, cancelaciones: cancelaciones },
+        summary: {
+          realized: 8443750,
+          backlog: 75143750,
+          run_rate: 3450000,
+          active_now: 552,
+          cancel_rate: 0.127,
+          cancel_count: 80,
+          total_policies: 630,
+          peak_month: "2025-10",
+          peak_ingreso: 3450000,
+          peak_activas: 552,
+          mix_plazo: {"24": 586, "12": 46},
+          actives_plazo_current: {"24": 508, "12": 44}
+        },
+        tables: {
+          responsables_mes_actual: [
+            {gt:"Paola Crisosto", bci:"Aldo", polizas:114, ingreso:712500},
+            {gt:"Xiomara Flores", bci:"Marcela", polizas:108, ingreso:675000},
+            {gt:"Gloria Ceron", bci:"Aldo", polizas:100, ingreso:625000},
+            {gt:"Jeannette Guerrero", bci:"Elsa", polizas:60, ingreso:375000},
+            {gt:"Jeannette Guerrero", bci:"Alejandra", polizas:58, ingreso:362500},
+            {gt:"Jeannette Guerrero", bci:"Pamela", polizas:50, ingreso:312500},
+            {gt:"Claudia Alarcon", bci:"Marisel", polizas:31, ingreso:193750},
+            {gt:"Nelson Mella", bci:"Aldo", polizas:31, ingreso:193750}
+          ],
+          canal_mes_actual: [
+            {canal:"E. Kovacs", polizas:167, ingreso:1043750},
+            {canal:"Guillermo Morales Ltda", polizas:35, ingreso:218750},
+            {canal:"Maritano Y Ebensperger", polizas:35, ingreso:218750},
+            {canal:"Automotriz Bilbao Ortega", polizas:33, ingreso:206250},
+            {canal:"Ek2 Spa", polizas:32, ingreso:200000},
+            {canal:"Servicios Automotriz Ansar Spa", polizas:26, ingreso:162500},
+            {canal:"Promotorschile", polizas:23, ingreso:143750},
+            {canal:"Automotriz Santa Maria", polizas:21, ingreso:131250},
+            {canal:"Autoplus Spa", polizas:20, ingreso:125000},
+            {canal:"Mediterraneo Automotores S.A.", polizas:20, ingreso:125000},
+            {canal:"Compra Justa", polizas:17, ingreso:106250},
+            {canal:"Garrido Autos", polizas:15, ingreso:93750},
+            {canal:"Rr Motors", polizas:14, ingreso:87500},
+            {canal:"Mdl Autos", polizas:14, ingreso:87500},
+            {canal:"Tecnocid", polizas:11, ingreso:68750},
+            {canal:"Piretta Automobile", polizas:8, ingreso:50000}
+          ],
+          cascada_mensual: []
+        }
+      };
+    })();
+  </script>
+
+  <!-- APP SCRIPT (inicialización, filtros y render) -->
+  <script id="app">
+    (function(){
+      function ready(fn){ if(document.readyState !== "loading") fn(); else document.addEventListener("DOMContentLoaded", fn); }
+      function numberCLP(n){ try{ return new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(n||0);}catch(e){ return "$"+(n||0); } }
+      function numberINT(n){ try{ return new Intl.NumberFormat("es-CL").format(n||0);}catch(e){ return String(n||0); } }
+
+      // Estado de vista (rango + toggles)
+      var state = { range: 'all', showVentas: true, showCancel: true };
+      var chartIngresos = null, chartVentas = null;
+
+      ready(function(){
+        // 1) Asegura datos
+        if(!window.__DATA__ || typeof window.__DATA__ !== "object") window.__DATA__ = {series:{months:[],ingreso:[],activas:[],ventas:[],cancelaciones:[]}, summary:{}, tables:{}};
+        var D = window.__DATA__;
+        D.series = D.series || {months:[],ingreso:[],activas:[],ventas:[],cancelaciones:[]};
+        D.summary = D.summary || {};
+        D.tables = D.tables || {};
+
+        // 2) Forzar consistencia del punto de octubre 2025 con los KPIs
+        var mIndex = D.series.months ? D.series.months.indexOf("10/2025") : -1;
+        if(mIndex >= 0){
+          D.series.ingreso[mIndex] = D.summary.run_rate || 0;
+          D.series.activas[mIndex] = D.summary.active_now || 0;
+          D.series.ventas[mIndex] = 80;
+        }
+
+        // 3) Población de KPIs
+        function setText(id, txt){ var el = document.getElementById(id); if(el) el.textContent = txt; }
+        setText("corte", "24/oct/2025");
+        setText("rango", "Todo");
+        setText("dataDate", "24/oct/2025");
+        setText("kpiRealizado", numberCLP(D.summary.realized));
+        setText("kpiRealizadoNote", "Hasta 09/2025");
+        setText("kpiBacklog", numberCLP(D.summary.backlog));
+        setText("kpiBacklogNote", "Desde 10/2025");
+        setText("kpiRunRate", numberCLP(D.summary.run_rate));
+        setText("kpiActivas", numberINT(D.summary.active_now));
+        setText("kpiCancelRate", ((D.summary.cancel_rate||0)*100).toFixed(1) + "%");
+        setText("kpiCancelCount", numberINT(D.summary.cancel_count));
+        setText("kpiTotalPolicies", numberINT(D.summary.total_policies));
+        setText("kpiPeak", (D.summary.peak_month||"").replace("-","/") + " - " + numberCLP(D.summary.peak_ingreso) + " (" + numberINT(D.summary.peak_activas) + " activas)" );
+        // Mix
+        var totMix = ((D.summary.mix_plazo||{}))["24"] + ((D.summary.mix_plazo||{}))["12"]; totMix = isNaN(totMix)?0:totMix;
+        var p24 = totMix ? (D.summary.mix_plazo["24"]/totMix*100) : 0;
+        setText("kpiMix", p24.toFixed(1) + "% · " + (100 - p24).toFixed(1) + "%");
+        setText("kpiMixNote", "24m = " + numberINT(D.summary.mix_plazo["24"]) + " | 12m = " + numberINT(D.summary.mix_plazo["12"]) + " (total " + numberINT(totMix) + ")");
+        // Activas por plazo
+        var totAct = ((D.summary.actives_plazo_current||{}))["24"] + ((D.summary.actives_plazo_current||{}))["12"]; totAct = isNaN(totAct)?0:totAct;
+        var p24a = totAct ? (D.summary.actives_plazo_current["24"]/totAct*100) : 0;
+        setText("kpiActivasPlazo", p24a.toFixed(1) + "% · " + (100 - p24a).toFixed(1) + "%");
+        setText("kpiActivasPlazoNote", "24m = " + numberINT(D.summary.actives_plazo_current["24"]) + " | 12m = " + numberINT(D.summary.actives_plazo_current["12"]) + " (total " + numberINT(totAct) + ")");
+
+        // Mes actual en encabezados de tablas micro
+        setText("mesActual", "Octubre 2025");
+        setText("mesActual2", "Octubre 2025");
+
+        // 4) Filtros: UI listeners
+        function setActiveButton(key){
+          document.querySelectorAll('[data-range]').forEach(function(btn){
+            if(btn.dataset.range === key){ btn.classList.add('btn-active'); btn.classList.remove('btn-muted'); }
+            else{ btn.classList.remove('btn-active'); btn.classList.add('btn-muted'); }
+          });
+        }
+        function setRange(key){ state.range = key; setActiveButton(key); rebuildView(); }
+        document.querySelectorAll('[data-range]').forEach(function(btn){ btn.addEventListener('click', function(){ setRange(btn.dataset.range); }); });
+        var chkVentas = document.getElementById('toggleVentas'); if(chkVentas){ chkVentas.addEventListener('change', function(){ state.showVentas = !!chkVentas.checked; rebuildView(); }); }
+        var chkCancel = document.getElementById('toggleCancel'); if(chkCancel){ chkCancel.addEventListener('change', function(){ state.showCancel = !!chkCancel.checked; rebuildView(); }); }
+
+        // 4.5) Render micro tablas (responsables y canales)
+        function renderMicroTables(){
+          var CLP = numberCLP, INT = numberINT;
+          var t1 = document.getElementById('respBody');
+          if(t1){
+            t1.innerHTML = '';
+            (D.tables.responsables_mes_actual||[]).forEach(function(r){
+              var tr = document.createElement('tr');
+              tr.innerHTML = '<td class="p-2">'+(r.gt||'-')+'</td>'+
+                             '<td class="p-2">'+(r.bci||'-')+'</td>'+
+                             '<td class="p-2 text-right">'+INT(r.polizas||0)+'</td>'+
+                             '<td class="p-2 text-right">'+CLP(r.ingreso||0)+'</td>';
+              t1.appendChild(tr);
+            });
+          }
+          var t2 = document.getElementById('dealerBody');
+          if(t2){
+            t2.innerHTML = '';
+            (D.tables.canal_mes_actual||[]).forEach(function(r){
+              var tr = document.createElement('tr');
+              tr.innerHTML = '<td class="p-2">'+(r.canal||'-')+'</td>'+
+                             '<td class="p-2 text-right">'+INT(r.polizas||0)+'</td>'+
+                             '<td class="p-2 text-right">'+CLP(r.ingreso||0)+'</td>';
+              t2.appendChild(tr);
+            });
+          }
+        }
+
+        // 5) Helper: filtrar series según state
+        function filteredSeries(){
+          var labels = (D.series.months||[]).slice();
+          var aIng = (D.series.ingreso||[]).slice();
+          var aAct = (D.series.activas||[]).slice();
+          var aVen = (D.series.ventas||[]).slice();
+          var aCan = (D.series.cancelaciones||[]).slice();
+          var idxCur = labels.indexOf('10/2025');
+          if(idxCur < 0) idxCur = labels.length - 1;
+
+          var start = 0, end = labels.length - 1;
+          if(state.range === 'ytd'){
+            var year = '2025';
+            for(var i=0;i<labels.length;i++){ if(labels[i].endsWith('/'+year)){ start = i; break; } }
+            end = idxCur;
+          } else if(state.range === 'last6'){
+            start = Math.max(0, idxCur - 6 + 1); end = idxCur;
+          } else if(state.range === 'last12'){
+            start = Math.max(0, idxCur - 12 + 1); end = idxCur;
+          } // 'all' mantiene 0..end
+
+          labels = labels.slice(start, end+1);
+          aIng = aIng.slice(start, end+1);
+          aAct = aAct.slice(start, end+1);
+          aVen = aVen.slice(start, end+1);
+          aCan = aCan.slice(start, end+1);
+          return { labels: labels, ingreso: aIng, activas: aAct, ventas: aVen, cancel: aCan, start: start, end: end };
+        }
+
+        // 6) Render principal (tabla + charts) según filtro
+        function rebuildView(){
+          var F = filteredSeries();
+          var labels = F.labels;
+          var tbody = document.getElementById("cascadaBody"); if(tbody){ tbody.innerHTML = ""; for(var i=0;i<labels.length;i++){ var tr = document.createElement("tr"); tr.innerHTML = "<td class=\"p-2\">"+labels[i]+"</td>"+
+            "<td class=\"p-2 text-right\">"+numberCLP(F.ingreso[i]||0)+"</td>"+
+            "<td class=\"p-2 text-right\">"+numberINT(F.activas[i]||0)+"</td>"+
+            "<td class=\"p-2 text-right\">"+numberINT(F.ventas[i]||0)+"</td>"+
+            "<td class=\"p-2 text-right\">"+numberINT(F.cancel[i]||0)+"</td>"; tbody.appendChild(tr);} }
+
+          // Charts
+          var c1 = document.getElementById("ingresosChart");
+          var c2 = document.getElementById("ventasChart");
+          if(window.Chart){
+            if(c1){ try{ if(Chart.getChart(c1)) Chart.getChart(c1).destroy(); }catch(e){}
+              chartIngresos = new Chart(c1.getContext("2d"), {
+                type: "line",
+                data: { labels: labels, datasets: [{ label: "Ingreso mensual (CLP)", data: F.ingreso, borderWidth: 2, tension: 0.25, pointRadius: 2 }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+              });
+            }
+            if(c2){ try{ if(Chart.getChart(c2)) Chart.getChart(c2).destroy(); }catch(e){}
+              chartVentas = new Chart(c2.getContext("2d"), {
+                type: "bar",
+                data: { labels: labels, datasets: [
+                  { label: "Ventas (# pólizas)", data: F.ventas, hidden: !state.showVentas },
+                  { label: "Cancelaciones (#)", type: "line", data: F.cancel, borderWidth: 2, tension: 0.25, pointRadius: 2, hidden: !state.showCancel }
+                ] },
+                options: { responsive: true, plugins: { legend: { display: true } }, scales: { y: { beginAtZero: true } } }
+              });
+            }
+          }
+          var rangeLbl = labels.length ? (labels[0] + " – " + labels[labels.length-1]) : "—";
+          var elR1 = document.getElementById("ingresosRange"); if(elR1) elR1.textContent = rangeLbl;
+          var elR2 = document.getElementById("ventasRange"); if(elR2) elR2.textContent = rangeLbl;
+          var elR = document.getElementById("rango"); if(elR){
+            var map = { all: 'Todo', ytd: 'YTD', last6: 'Últimos 6m', last12: 'Últimos 12m' };
+            elR.textContent = map[state.range] || 'Todo';
+          }
+        }
+
+        // Inicializa una vez
+        renderMicroTables();
+        setActiveButton(state.range);
+        setRange('all');
+      });
+    })();
+  </script>
+
+  <!-- SMOKE TESTS (incluye verificación de filtros) -->
+  <script id="smoke-tests">
+    (function(){
+      function T(name, ok){ (console[ok?"log":"error"])("TEST " + (ok?"OK ":"FAIL ") + name); }
+      window.addEventListener("DOMContentLoaded", function(){
+        try {
+          var D = window.__DATA__;
+          T("__DATA__ exists", !!D);
+          T("D.summary object", D && typeof D.summary === "object");
+          T("D.tables object", D && typeof D.tables === "object");
+          T("#dealerBody present", !!document.getElementById("dealerBody"));
+          T("#respBody present", !!document.getElementById("respBody"));
+          var rr = document.getElementById("kpiRunRate"); T("kpiRunRate filled", !!(rr && rr.textContent && rr.textContent.trim().length));
+          // Rango buttons exist
+          var btns = document.querySelectorAll('[data-range]');
+          T("Range buttons present", btns && btns.length >= 4);
+        } catch(e){ console.error("TEST ERROR", e); }
+      });
+    })();
+  </script>
+</body>
+</html>
